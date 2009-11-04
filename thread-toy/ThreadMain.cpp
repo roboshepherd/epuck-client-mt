@@ -7,43 +7,94 @@ PlayerClient* pc;
 Position2dProxy* p2d;
 IrProxy* irp;
 // device state
-RobotDevice::eState state;
+volatile RobotDevice::eState state;
 
 // thread stuff
-condition_variable cond;
-mutex mut;
-bool device_ready;
+condition_variable link_cond, device_cond;
+mutex link_mut, device_mut;
+volatile bool link_busy;
+volatile bool device_available;
+
+
+boost::xtime xsecs(int secs)
+{
+    //Create an xtime that is secs seconds from now
+    boost::xtime ret;
+    ret.sec += secs;
+    return ret;
+}
 
 // check e-puck state in every 30 sec
 void check_device_state(EpuckPlayerClient *epuck)
 {
-  boost::unique_lock<boost::mutex> lock(mut);
+  work:
+  {
 
-  while(!device_ready) {
-    cond.wait(lock);
-    printf("check device thread: waiting\n");
+    boost::unique_lock<boost::mutex> lock(link_mut);
+
+    while(link_busy) {
+      link_cond.wait(lock);
+      printf("%ld ++++++++++++: waiting for link to be ready\n", GetTimeInSecond());
+    }
+
+    state = epuck->GetClientState(pc);
+    printf("%ld +++++++++++++: Robot state: %d \n", GetTimeInSecond(), (int )state);
+    if (state == RobotDevice::AVAILABLE) {
+      {
+        boost::lock_guard<boost::mutex> lock(device_mut);
+        device_available = true;
+      }
+      device_cond.notify_one();
+    }
+
   }
+  Sleep(3000);
+  goto work;
 
-  state = epuck->GetClientState(pc);
-  printf(" check device thread: Robot state: %d \n", (int )state);
 }
+
+void navigate_to_task()
+{
+  {
+    boost::lock_guard<boost::mutex> lock(link_mut);
+    link_busy = true;
+  }
+  link_cond.notify_one();
+
+  printf("%ld $$$$$$$$$$$$$$: navigating ------xxxxx\n", GetTimeInSecond());
+  Sleep(500);
+   // set device link free
+  {
+    boost::lock_guard<boost::mutex> lock(link_mut);
+    link_busy = false;
+  }
+  link_cond.notify_one();
+   printf("%ld, XXXXXXXXXXXX:task ended ---------<<<<<\n", GetTimeInSecond());
+}
+
 
 void do_task()
 {
-    // TODO: navigate for a set time
-    printf("task started ---->>>>>>>\n");
-    sleep(5);
-//    for(int i=0; i < 10000000; i++) {
-//    }
-    printf("task done ---------<<<<<\n");
-    // set device free
-    {
-      boost::lock_guard<boost::mutex> lock(mut);
-      device_ready = true;
-    }
-    cond.notify_one();
+work:
+  {
+      // TODO: navigate for a set time
+      printf("%ld, XXXXXXXXXXX: checking device availability...\n", GetTimeInSecond());
+      //sleep(2);
+      boost::unique_lock<boost::mutex> lock(device_mut);
+      while(!device_available) {
+        device_cond.wait(lock);
+        printf("%ld, XXXXXXXXXX: waiting for device to be available\n", GetTimeInSecond());
+      }
+      thread task_thread = thread(navigate_to_task);
+      task_thread.detach();
 
+      printf("%ld, XXXXXXXXXXXX:task started ---------<<<<<\n", GetTimeInSecond());
+
+  }
+  Sleep(1000);
+  goto work;
 }
+
 
 int main (int argc, char ** argv) {
 
@@ -72,6 +123,10 @@ workloop:
         p2d = &pose2d;
         irp = &ir;
 
+        // init
+        device_available = false;
+        link_busy = false;
+
         thread thread_1 = thread(check_device_state, &epuck);
         thread thread_2 = thread(do_task);
 
@@ -85,6 +140,9 @@ workloop:
 //          Sleep(STEP_TIME);
         }
 
+          thread_1.join();
+          thread_2.join();
+
     } catch (PlayerError pe) {
         std::cerr << pe << std::endl;
         epuck.mRobotDevice.mStateStep++;
@@ -92,7 +150,6 @@ workloop:
     }
 
 
-    //thread_2.join();
-    //thread_1.join();
+
     return 0;
 }

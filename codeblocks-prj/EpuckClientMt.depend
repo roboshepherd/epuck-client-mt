@@ -1,8 +1,8 @@
 # depslib dependency file v1.0
-1257242951 source:/home/newport-ril/afm-local-expt/epuck-client-mt/thread-toy/ThreadMain.cpp
+1257342046 source:/home/newport-ril/afm-local-expt/epuck-client-mt/thread-toy/ThreadMain.cpp
 	"ThreadMain.h"
 
-1257168148 /home/newport-ril/afm-local-expt/epuck-client-mt/thread-toy/ThreadMain.h
+1257337780 /home/newport-ril/afm-local-expt/epuck-client-mt/thread-toy/ThreadMain.h
 	<string>
 	<cstdlib>
 	<iostream>
@@ -10,6 +10,7 @@
 	<boost/interprocess/managed_shared_memory.hpp>
 	<boost/interprocess/sync/interprocess_semaphore.hpp>
 	<boost/thread.hpp>
+	<boost/thread/xtime.hpp>
 	"EpuckPlayerClient.h"
 	"RobotDevice.h"
 	"SHMConfig.h"

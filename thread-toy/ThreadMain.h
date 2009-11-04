@@ -13,6 +13,7 @@ using namespace PlayerCc;
 using namespace boost::interprocess;
 
 #include <boost/thread.hpp>
+#include <boost/thread/xtime.hpp>
 using namespace boost;
 
 
